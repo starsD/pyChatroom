@@ -2,15 +2,17 @@ from tkinter import *
 from tkinter import messagebox
 import tkinter as tk
 import socket
-import sys
 import select
 import threading
+import os
+import sys
 
 
 class ChatRoomApplication:
     def __init__(self, _root, _client):
         self.client = _client
         self.root = _root
+        self.root.protocol("WM_DELETE_WINDOW", self.exit)
         self.root.resizable(False, False)
         '''
         Create Top
@@ -31,10 +33,25 @@ class ChatRoomApplication:
         self.frm_bottom_sendbox = tk.Text(self.frm_bottom, width=50, height=8)
         self.frm_bottom_sendbox.grid(row=0, column=0, padx=5, pady=2)
 
-        self.frm_bottom_send = tk.Button(self.frm_bottom, text='Send', command=self.send)
-        self.frm_bottom_send.grid(row=0, column=1, padx=5, pady=0, sticky='WE')
+        '''
+        Create Buttons
+        '''
+        self.frm_buttons = tk.LabelFrame(self.frm_bottom)
+        self.frm_buttons.grid(row=0, column=1, padx=5, pady=2)
+
+        self.frm_bottom_send = tk.Button(self.frm_buttons, text='Send', command=self.send)
+        self.frm_bottom_send.grid(row=0, column=0, padx=5, pady=0, sticky='WE')
+
+        self.frm_bottom_clear = tk.Button(self.frm_buttons, text='Clear', command=self.clear)
+        self.frm_bottom_clear.grid(row=1, column=0, padx=5, pady=2, sticky='EW')
+
+        self.frm_bottom_save = tk.Button(self.frm_buttons, text='Save', command=None)
+        self.frm_bottom_save.grid(row=2, column=0, padx=5, pady=2, sticky='EW')
 
     def send(self):
+        """
+        send the text content to server and add it to the chat record
+        """
         self.frm_top_record.configure(state='normal')
         msg = self.frm_bottom_sendbox.get(0.0, END)
         self.client.s.send(msg.encode('utf-8'))
@@ -43,12 +60,32 @@ class ChatRoomApplication:
         self.frm_top_record.configure(state='disabled')
         self.frm_top_record.see(END)
 
+    def clear(self):
+        """
+        clear the chat record
+        """
+        if tk.messagebox.askokcancel(title='', message='Are you sure to clear the chat record?'):
+            self.frm_top_record['state'] = 'normal'
+            self.frm_top_record.delete(0.0, END)
+            self.frm_top_record['state'] = 'disabled'
+            self.frm_top_record.see(END)
+
+    def exit(self):
+        """
+        when closed, the window sends an exit message and exit the process
+        """
+        self.root.destroy()
+        self.client.s.send(b'exit')
+
     def run(self):
+        """
+        listen to the client socket and write the message from server to chat record when it's readable
+        """
         try:
             self.client.s.connect((self.client.des_host, self.client.des_port))
         except Exception as err:
             tk.messagebox.showerror('Error', str(err))
-            sys.exit()
+            exit(1)
         while True:
             rlist = [self.client.s]
             read_list, write_list, error_list = select.select(rlist, [], [])
@@ -61,7 +98,8 @@ class ChatRoomApplication:
                         self.frm_top_record.configure(state='disabled')
                         self.frm_top_record.see(END)
                     else:
-                        tk.messagebox.showerror('Error', 'Disconnected from server')
+                        # tk.messagebox.showerror('Error', 'Disconnected from server')
+                        self.client.s.send(b'exit')
                         sys.exit()
 
 
@@ -76,14 +114,10 @@ class Client:
 
 root = tk.Tk()
 root.title('ChatRoom')
-client = Client('115.28.131.208')
+# connect to my server
+client = Client('lonelyone.cn')
 chat = ChatRoomApplication(root, client)
 
-t1 = threading.Thread(target=chat.run, args=())
-t1.start()
+t1 = threading.Thread(target=chat.run, args=()).start()
+
 root.mainloop()
-
-
-
-
-
