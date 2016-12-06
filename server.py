@@ -2,6 +2,7 @@ import socket
 import select
 import time
 
+
 class ChatServer:
     def __init__(self, host='localhost', port=8998):
         self.CONNECTIONS = []
@@ -12,10 +13,14 @@ class ChatServer:
         self.RCVBUF = 4096
 
     def broadcast_data(self, sock_set, message):
+        """
+        :param sock_set: sockets that are going to send message to
+        :param message: message to send
+        """
         for sock in sock_set:
             if sock != self.server:
                 try:
-                    sock.send(message)
+                    sock.send(message.encode('utf-8'))
                 except:
                     sock.close()
                     self.CONNECTIONS.remove(sock)
@@ -30,23 +35,28 @@ class ChatServer:
                     sockfd, addr = self.server.accept()
                     self.CONNECTIONS.append(sockfd)
                     print('Client {} has connected'.format(addr))
-                    self.broadcast_data(set(self.CONNECTIONS), '\r{} entered room\n'.format(addr).encode('utf-8'))
+                    self.broadcast_data(set(self.CONNECTIONS), '\r{} entered room\n'.format(addr))
                 else:
                     try:
                         data = sock.recv(self.RCVBUF)
-                        if data:
+                        if data and data != b'exit':
                             self.broadcast_data(set(self.CONNECTIONS)-{sock},
-                            ("\r" + '<' + str(sock.getpeername()) + '>\n    ' + data.decode('utf-8')).encode('utf-8'))
-                    except Exception as err:
-                        print(str(err))
-                        self.broadcast_data(set(self.CONNECTIONS)-{self.server},
-                                            "\rClient {} is offline\n".format(addr))
-                        print("Client {} is offline".format(addr))
+                            ("\r" + '<' + str(sock.getpeername()) + '>\n   ' +
+                             data.decode('utf-8')).encode('utf-8'))
+                        else:
+                            raise Exception()
+                    except:
+                        try:
+                            self.broadcast_data(set(self.CONNECTIONS)-{self.server, sock},
+                                                "\rClient {} is offline\n".format(sock.getpeername()))
+                            print("Client {} is offline".format(sock.getpeername()))
+                        except:
+                            continue
                         if sock in self.CONNECTIONS:
                             self.CONNECTIONS.remove(sock)
                         sock.close()
                         continue
         self.server.close()
-server = ChatServer('lonelyone.cn')
+server = ChatServer()
 server.run()
 
