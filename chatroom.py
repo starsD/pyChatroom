@@ -4,7 +4,6 @@ import tkinter as tk
 import socket
 import select
 import threading
-import os
 import sys
 
 
@@ -77,6 +76,7 @@ class ChatRoomApplication:
         self.root.destroy()
         self.client.s.send(b'exit')
 
+
     def run(self):
         """
         listen to the client socket and write the message from server to chat record when it's readable
@@ -87,26 +87,31 @@ class ChatRoomApplication:
             tk.messagebox.showerror('Error', str(err))
             exit(1)
         while True:
-            rlist = [self.client.s]
-            read_list, write_list, error_list = select.select(rlist, [], [])
-            for sock in read_list:
-                if sock == self.client.s:
-                    data = sock.recv(4096)
-                    if data:
-                        self.frm_top_record.configure(state='normal')
-                        self.frm_top_record.insert(END, data.decode('utf-8'))
-                        self.frm_top_record.configure(state='disabled')
-                        self.frm_top_record.see(END)
-                    else:
-                        # tk.messagebox.showerror('Error', 'Disconnected from server')
-                        self.client.s.send(b'exit')
-                        sys.exit()
+            # rlist = [self.client.s]
+            # read_list, write_list, error_list = select.select(rlist, [], [])
+            # for sock in read_list:
+            #     if sock == self.client.s:
+            data = self.client.s.recv(4096)
+            print(data)
+            if data:
+                self.frm_top_record.configure(state='normal')
+                self.frm_top_record.insert(END, data.decode('utf-8'))
+                self.frm_top_record.configure(state='disabled')
+                self.frm_top_record.see(END)
+            else:
+                # tk.messagebox.showerror('Error', 'Disconnected from server')
+                self.client.s.send(b'exit')
+                self.client.s.close()
+                print("exit")
+                break
+                
 
 
 class Client:
     def __init__(self, host='localhost', port=8998):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.settimeout(2)
+        self.s.settimeout(60)
+        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 10)
         self.host_name = socket.gethostname()
         self.ip = socket.gethostbyname(self.host_name)
         self.des_host = host
@@ -115,9 +120,8 @@ class Client:
 root = tk.Tk()
 root.title('ChatRoom')
 # connect to my server
-client = Client('lonelyone.cn')
+client = Client()
 chat = ChatRoomApplication(root, client)
 
 t1 = threading.Thread(target=chat.run, args=()).start()
-
 root.mainloop()
