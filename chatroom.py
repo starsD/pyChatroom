@@ -5,9 +5,13 @@ import socket
 import select
 import threading
 import sys
-
+import os
+import tkinter.messagebox as tkbox
 
 class ChatRoomApplication:
+    
+    history_dir = 'history'
+
     def __init__(self, _root, _client):
         self.client = _client
         self.root = _root
@@ -44,7 +48,7 @@ class ChatRoomApplication:
         self.frm_bottom_clear = tk.Button(self.frm_buttons, text='Clear', command=self.clear)
         self.frm_bottom_clear.grid(row=1, column=0, padx=5, pady=2, sticky='EW')
 
-        self.frm_bottom_save = tk.Button(self.frm_buttons, text='Save', command=None)
+        self.frm_bottom_save = tk.Button(self.frm_buttons, text='Save', command=self.save)
         self.frm_bottom_save.grid(row=2, column=0, padx=5, pady=2, sticky='EW')
 
     def send(self):
@@ -76,6 +80,21 @@ class ChatRoomApplication:
         self.root.destroy()
         self.client.s.send(b'exit')
 
+    def show_data(self, data):
+        pass
+    
+    def save(self):
+        if not os.path.exists(ChatRoomApplication.history_dir):
+            os.mkdir(ChatRoomApplication.history_dir)
+        history_log = self.frm_top_record.get(0.0, END)
+        with open(os.path.join(ChatRoomApplication.history_dir, "history.txt"), 'w') as f:
+            f.write(history_log)
+            f.close()
+        self.notice("successfully saved")
+
+    def notice(self, message):
+        tkbox.showinfo('', message)
+        pass
 
     def run(self):
         """
@@ -100,7 +119,7 @@ class ChatRoomApplication:
                 self.frm_top_record.see(END)
             else:
                 # tk.messagebox.showerror('Error', 'Disconnected from server')
-                self.client.s.send(b'exit')
+                # self.client.s.send(b'exit')
                 self.client.s.close()
                 print("exit")
                 break
@@ -110,7 +129,7 @@ class ChatRoomApplication:
 class Client:
     def __init__(self, host='localhost', port=8998):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.settimeout(60)
+
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 10)
         self.host_name = socket.gethostname()
         self.ip = socket.gethostbyname(self.host_name)

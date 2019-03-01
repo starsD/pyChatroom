@@ -15,6 +15,7 @@ class ChatServer:
         self.server.listen(20)
         self.port = port
         self.RCVBUF = 4096
+        a = self.run
 
     def broadcast_data(self, sock_set, message):
         """
@@ -26,11 +27,9 @@ class ChatServer:
                 try:
                     print(sock)
                     sock.send(message)
-
-                    print('kkk')
                 except:
                     sock.close()
-                    self.iutputs.remove(sock)
+                    self.inputs.remove(sock)
 
     def run(self):
         print('ChatServer running on port:{}'.format(self.port))
@@ -43,7 +42,7 @@ class ChatServer:
                     self.inputs.append(sockfd)
                     print('Client {} has connected'.format(addr))
                     self.message_queues[sockfd] = queue.Queue()
-                    # self.broadcast_data(set(self.inputs), '\r{} entered room\n'.format(addr))
+                    self.broadcast_data(set(self.inputs), ('\r{} entered room\n'.format(addr)).encode("utf-8"))
                 else:
                     try:
                         data = sock.recv(self.RCVBUF)
@@ -57,10 +56,15 @@ class ChatServer:
                             # ("\r" + '<' + str(sock.getpeername()) + '>\n   ' +
                             #  data.decode('utf-8')).encode('utf-8'))
                         elif data == b'exit':
-                            sock.close()
-                            self.inputs.remove(sock)
-                            if sock in self.outputs:
-                                self.outputs.remove(sock)
+                            # sock.close()
+                            # self.inputs.remove(sock)
+                            # if sock in self.outputs:
+                            #     self.outputs.remove(sock)
+                            print("breakpoint 0")
+                            self.message_queues[sock].put('exit')
+                            if sock not in self.outputs:
+                                self.outputs.append(sock)
+
                         else:
 
                             raise Exception()
@@ -68,8 +72,6 @@ class ChatServer:
                         try:
                             self.broadcast_data(set(self.inputs)-{self.server, sock},
                                                 "\rClient {} is offline\n".format(sock.getpeername()))
-                            # self.broadcast_data(set(self.outputs)-{self.server, sock},
-                            #                     "\rClient {} is offline\n".format(sock.getpeername()))
                             print("Client {} is offline".format(sock.getpeername()))
                         except:
                             if sock in self.message_queues:
@@ -85,10 +87,19 @@ class ChatServer:
                     next_msg = self.message_queues[sock].get_nowait() 
                 except queue.Empty:
                     err_msg = "Output Queue is Empty!"
-                    #g_logFd.writeFormatMsg(g_logFd.LEVEL_INFO, err_msg)
                     self.outputs.remove(sock)
                 else:
-                    self.broadcast_data(set(self.inputs)-{sock},next_msg)
+                    print("breakpoint 1 ")
+                    if next_msg == 'exit':
+                        self.broadcast_data(set(self.inputs)-{self.server, sock},
+                                                "\rClient {} is offline\n".format(sock.getpeername()).encode('utf-8'))
+                        sock.close()
+                        if sock in self.inputs:
+                            self.inputs.remove(sock)
+                        if sock in self.outputs:
+                            self.outputs.remove(sock)
+                    else:
+                        self.broadcast_data(set(self.inputs)-{sock}, next_msg)
                     # sock.send(next_msg)
         self.server.close()
 
