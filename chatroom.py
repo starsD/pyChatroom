@@ -6,6 +6,7 @@ import select
 import threading
 import sys
 import os
+import json
 import tkinter.messagebox as tkbox
 
 class ChatRoomApplication:
@@ -55,11 +56,17 @@ class ChatRoomApplication:
         """
         send the text content to server and add it to the chat record
         """
+        request_json = {}
         self.frm_top_record.configure(state='normal')
+
         msg = self.frm_bottom_sendbox.get(0.0, END)
-        self.client.s.send(msg.encode('utf-8'))
         self.frm_top_record.insert(END, "You:\n  {}".format(msg))
+
+        request_json['request_code'] = '0001'
+        request_json['message'] = msg
+        self.client.s.send(json.dumps(request_json).encode('utf-8'))
         self.frm_bottom_sendbox.delete(0.0, END)
+
         self.frm_top_record.configure(state='disabled')
         self.frm_top_record.see(END)
 
@@ -79,15 +86,12 @@ class ChatRoomApplication:
         """
         self.root.destroy()
         self.client.s.send(b'exit')
-
-    def show_data(self, data):
-        pass
     
     def save(self):
         if not os.path.exists(ChatRoomApplication.history_dir):
             os.mkdir(ChatRoomApplication.history_dir)
         history_log = self.frm_top_record.get(0.0, END)
-        with open(os.path.join(ChatRoomApplication.history_dir, "history.txt"), 'w') as f:
+        with open(os.path.join(ChatRoomApplication.history_dir, "history.txt"), 'a+') as f:
             f.write(history_log)
             f.close()
         self.notice("successfully saved")
@@ -100,6 +104,24 @@ class ChatRoomApplication:
         """
         listen to the client socket and write the message from server to chat record when it's readable
         """
+        def set_text_property(func):
+            def inner(top_text, data):
+                top_text.configure(state='normal')
+                s = func(top_text, data)
+                top_text.insert(END, s)
+                top_text.configure(state='disabled')
+                top_text.see(END)
+            return inner
+
+        @set_text_property
+        def show_data(top_text, data):
+            try:
+                json_data = json.loads(data.decode('utf-8'))
+                s = '\r' + '<' + json_data['from_client'] + '>\n\t' + json_data['message']
+            except Exception as e:
+                s = '\r' + '<' + data.decode('utf-8') +'\n'
+            return s
+
         try:
             self.client.s.connect((self.client.des_host, self.client.des_port))
         except Exception as err:
@@ -113,10 +135,7 @@ class ChatRoomApplication:
             data = self.client.s.recv(4096)
             print(data)
             if data:
-                self.frm_top_record.configure(state='normal')
-                self.frm_top_record.insert(END, data.decode('utf-8'))
-                self.frm_top_record.configure(state='disabled')
-                self.frm_top_record.see(END)
+                show_data(self.frm_top_record, data)
             else:
                 # tk.messagebox.showerror('Error', 'Disconnected from server')
                 # self.client.s.send(b'exit')
